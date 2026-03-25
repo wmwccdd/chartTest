@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LNG Exports vs. Retail Electricity Prices</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #030945;
+    --blue: #0077cd;
+    --rubine: #c20060;
+    --magenta: #85006c;
+    --lime: #d1e000;
+    --aqua: #009fdf;
+    --yellow: #ffac00;
+    --silver: #c0c6d6;
+    --light-blue: #9ad7f9;
+    --light-pink: #f59bc9;
+    --neutral: #797e83;
+    --neutral-dark: #495059;
+    --neutral-darker: #19222e;
+    --neutral-light: #a9abae;
+    --neutral-lighter: #d9d9d9;
+    --neutral-lightest: #fafbfd;
+    --white: #ffffff;
+    --black: #000000;
+    --darkest-navy: #010b19;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    font-family: 'Manrope', sans-serif;
+    background: #ffffff;
+    color: var(--black);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .chart-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: clamp(20px, 4vw, 40px) clamp(12px, 3vw, 32px) clamp(16px, 3vw, 32px);
+    position: relative;
+  }
+
+  /* --- Header --- */
+  .chart-header {
+    margin-bottom: clamp(16px, 3vw, 32px);
+    opacity: 0;
+    transform: translateY(12px);
+    animation: fadeUp 0.6s ease-out 0.2s forwards;
+  }
+
+  .chart-eyebrow {
+    font-size: clamp(9px, 1.4vw, 11px);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--rubine);
+    margin-bottom: 6px;
+  }
+
+  .chart-title {
+    font-size: clamp(17px, 2.8vw, 22px);
+    font-weight: 800;
+    line-height: 1.2;
+    color: var(--navy);
+    margin-bottom: 8px;
+  }
+
+  .chart-subtitle {
+    font-size: clamp(12px, 1.8vw, 14px);
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--neutral-dark);
+  }
+
+  .chart-subtitle strong {
+    color: var(--navy);
+    font-weight: 700;
+  }
+
+  /* --- SVG wrap --- */
+  .chart-svg-wrap {
+    position: relative;
+    width: 100%;
+    opacity: 0;
+    animation: fadeIn 0.5s ease-out 0.5s forwards;
+  }
+
+  svg.main-chart {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+    touch-action: none; /* prevent scroll while interacting */
+  }
+
+  /* --- Dots --- */
+  .dot-other { opacity: 0; animation: dotAppear 0.4s ease-out forwards; }
+  .dot-lng   { opacity: 0; animation: dotAppearPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  .dot-ne    { opacity: 0; animation: dotAppearPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  .dot-ca    { opacity: 0; animation: dotAppearPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+  /* --- SVG annotations (desktop) --- */
+  .annotation { opacity: 0; }
+  .annotation.visible { animation: fadeUp 0.6s ease-out forwards; }
+
+  /* --- HTML annotation cards (mobile fallback) --- */
+  .annotation-cards {
+    display: none;
+    gap: 10px;
+    margin-top: 16px;
+    opacity: 0;
+    animation: fadeUp 0.6s ease-out 3.2s forwards;
+  }
+
+  .ann-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: var(--white);
+    border: 1px solid var(--neutral-lighter);
+  }
+
+  .ann-card-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .ann-card-text {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .ann-card-text strong {
+    font-weight: 800;
+    color: var(--navy);
+    display: block;
+    font-size: 13px;
+  }
+
+  /* --- Legend --- */
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: clamp(10px, 2vw, 20px);
+    margin-top: clamp(12px, 2vw, 20px);
+    padding-top: clamp(10px, 1.5vw, 16px);
+    border-top: 1px solid var(--neutral-lighter);
+    opacity: 0;
+    animation: fadeIn 0.5s ease-out 3.8s forwards;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: clamp(10px, 1.5vw, 12px);
+    font-weight: 600;
+    color: var(--neutral-dark);
+  }
+
+  .legend-dot {
+    width: clamp(8px, 1.2vw, 10px);
+    height: clamp(8px, 1.2vw, 10px);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* --- Source --- */
+  .chart-source {
+    margin-top: 12px;
+    font-size: clamp(9px, 1.3vw, 11px);
+    color: var(--neutral-light);
+    font-weight: 400;
+    opacity: 0;
+    animation: fadeIn 0.5s ease-out 4s forwards;
+  }
+  .chart-source a { color: var(--blue); text-decoration: none; }
+  .chart-source a:hover { text-decoration: underline; }
+
+  /* --- Tooltip --- */
+  .tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--white);
+    color: var(--navy);
+    border: 1px solid var(--neutral-lighter);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12px;
+    line-height: 1.5;
+    box-shadow: 0 4px 24px rgba(3, 9, 69, 0.10), 0 1px 4px rgba(0,0,0,0.06);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 1000;
+    white-space: nowrap;
+    max-width: calc(100vw - 24px);
+  }
+  .tooltip.show { opacity: 1; }
+
+  .tooltip .tt-name {
+    font-weight: 800;
+    font-size: 14px;
+    color: var(--navy);
+    margin-bottom: 2px;
+  }
+  .tooltip .tt-category {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--neutral-lighter);
+  }
+  .tooltip .tt-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 1px 0;
+  }
+  .tooltip .tt-label { color: var(--neutral); font-weight: 500; }
+  .tooltip .tt-value { font-weight: 700; color: var(--navy); }
+
+  /* --- Mobile tooltip (bottom sheet style) --- */
+  @media (max-width: 600px) {
+    .tooltip {
+      position: fixed;
+      bottom: 0;
+      left: 0 !important;
+      right: 0;
+      top: auto !important;
+      width: 100%;
+      max-width: 100%;
+      border-radius: 12px 12px 0 0;
+      padding: 16px 20px;
+      white-space: normal;
+      transform: translateY(100%);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .tooltip.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* --- Mobile: swap SVG annotations for HTML cards --- */
+  @media (max-width: 700px) {
+    .svg-annotation { display: none !important; opacity: 0 !important; }
+    .annotation-cards { display: flex; flex-direction: column; }
+  }
+
+  /* --- Keyframes --- */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes dotAppear {
+    from { opacity: 0; transform: scale(0.3); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  @keyframes dotAppearPop {
+    from { opacity: 0; transform: scale(0); }
+    60%  { opacity: 1; transform: scale(1.3); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+</style>
+</head>
+<body>
+
+<div class="chart-container" id="chartContainer">
+  <div class="chart-header">
+    <div class="chart-eyebrow">LNG Exports & Electricity Costs</div>
+    <h2 class="chart-title">States That Export the Most LNG Have Some of the Lowest Electricity Prices</h2>
+    <p class="chart-subtitle">
+      Each dot is a U.S. state. States hosting LNG export terminals — like <strong>Texas</strong> and <strong>Louisiana</strong> — maintain prices <strong>below the national average</strong>. The highest prices are in <strong>New England</strong> and <strong>California</strong>, which have <strong>no LNG terminals</strong>.
+    </p>
+  </div>
+
+  <div class="chart-svg-wrap" id="chartSvgWrap">
+    <svg class="main-chart" id="mainChart" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <!-- Mobile annotation cards (hidden on desktop, shown ≤700px) -->
+  <div class="annotation-cards" id="annotationCards">
+    <div class="ann-card" style="border-color: #c20060;">
+      <span class="ann-card-dot" style="background: #c20060;"></span>
+      <div class="ann-card-text">
+        <strong>No LNG terminals</strong>
+        <span style="color: #c20060;">New England & California — highest prices in the U.S.</span>
+      </div>
+    </div>
+    <div class="ann-card" style="border-color: #0077cd;">
+      <span class="ann-card-dot" style="background: #0077cd;"></span>
+      <div class="ann-card-text">
+        <strong>Major LNG export terminals</strong>
+        <span style="color: #0077cd;">TX, LA, GA, MD — below-average electricity prices</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <div class="chart-legend" id="chartLegend"></div>
+  <div class="chart-source">Source: <a href="https://www.eia.gov/electricity/monthly/" target="_blank" rel="noopener">EIA Electric Power Monthly</a>, Table 5.6.A · <a href="https://www.eia.gov/naturalgas/data.php#exports" target="_blank" rel="noopener">EIA LNG Exports Data</a></div>
+</div>
+
+<script>
+(function() {
+  // ============ DATA ============
+  const electricityPrices = [
+    {abbr:"AL",name:"Alabama",p2020:12.4,p2024:15.2},
+    {abbr:"AZ",name:"Arizona",p2020:12.4,p2024:14.9},
+    {abbr:"AR",name:"Arkansas",p2020:10.1,p2024:12.3},
+    {abbr:"CA",name:"California",p2020:20.5,p2024:32.0},
+    {abbr:"CO",name:"Colorado",p2020:12.4,p2024:14.9},
+    {abbr:"CT",name:"Connecticut",p2020:21.4,p2024:28.8},
+    {abbr:"DE",name:"Delaware",p2020:12.5,p2024:16.6},
+    {abbr:"DC",name:"District of Columbia",p2020:12.6,p2024:17.7},
+    {abbr:"FL",name:"Florida",p2020:11.1,p2024:14.1},
+    {abbr:"GA",name:"Georgia",p2020:11.6,p2024:14.1},
+    {abbr:"ID",name:"Idaho",p2020:9.7,p2024:11.5},
+    {abbr:"IL",name:"Illinois",p2020:12.3,p2024:15.9},
+    {abbr:"IN",name:"Indiana",p2020:11.3,p2024:14.8},
+    {abbr:"IA",name:"Iowa",p2020:11.2,p2024:13.4},
+    {abbr:"KS",name:"Kansas",p2020:12.7,p2024:14.2},
+    {abbr:"KY",name:"Kentucky",p2020:10.5,p2024:12.8},
+    {abbr:"LA",name:"Louisiana",p2020:9.2,p2024:11.7},
+    {abbr:"ME",name:"Maine",p2020:16.1,p2024:24.3},
+    {abbr:"MD",name:"Maryland",p2020:13.2,p2024:17.9},
+    {abbr:"MA",name:"Massachusetts",p2020:22.0,p2024:29.4},
+    {abbr:"MI",name:"Michigan",p2020:15.3,p2024:19.3},
+    {abbr:"MN",name:"Minnesota",p2020:12.5,p2024:15.5},
+    {abbr:"MS",name:"Mississippi",p2020:10.8,p2024:13.4},
+    {abbr:"MO",name:"Missouri",p2020:11.3,p2024:12.9},
+    {abbr:"MT",name:"Montana",p2020:10.8,p2024:12.7},
+    {abbr:"NE",name:"Nebraska",p2020:10.5,p2024:11.5},
+    {abbr:"NV",name:"Nevada",p2020:11.3,p2024:15.0},
+    {abbr:"NH",name:"New Hampshire",p2020:19.3,p2024:23.4},
+    {abbr:"NJ",name:"New Jersey",p2020:15.5,p2024:19.3},
+    {abbr:"NM",name:"New Mexico",p2020:12.3,p2024:14.2},
+    {abbr:"NY",name:"New York",p2020:17.3,p2024:24.4},
+    {abbr:"NC",name:"North Carolina",p2020:10.9,p2024:14.1},
+    {abbr:"ND",name:"North Dakota",p2020:10.2,p2024:11.5},
+    {abbr:"OH",name:"Ohio",p2020:11.9,p2024:16.0},
+    {abbr:"OK",name:"Oklahoma",p2020:10.0,p2024:12.2},
+    {abbr:"OR",name:"Oregon",p2020:10.6,p2024:14.7},
+    {abbr:"PA",name:"Pennsylvania",p2020:13.1,p2024:17.8},
+    {abbr:"RI",name:"Rhode Island",p2020:20.2,p2024:28.7},
+    {abbr:"SC",name:"South Carolina",p2020:12.4,p2024:14.2},
+    {abbr:"SD",name:"South Dakota",p2020:11.0,p2024:12.9},
+    {abbr:"TN",name:"Tennessee",p2020:10.7,p2024:12.4},
+    {abbr:"TX",name:"Texas",p2020:11.3,p2024:14.9},
+    {abbr:"UT",name:"Utah",p2020:10.4,p2024:12.2},
+    {abbr:"VT",name:"Vermont",p2020:18.2,p2024:21.9},
+    {abbr:"VA",name:"Virginia",p2020:11.2,p2024:14.4},
+    {abbr:"WA",name:"Washington",p2020:9.4,p2024:11.9},
+    {abbr:"WV",name:"West Virginia",p2020:10.6,p2024:15.1},
+    {abbr:"WI",name:"Wisconsin",p2020:13.8,p2024:17.2},
+    {abbr:"WY",name:"Wyoming",p2020:9.6,p2024:12.5}
+  ];
+
+  const LNG_STATES = ["LA","TX","GA","MD"];
+  const NE_STATES = ["CT","ME","MA","NH","RI","VT"];
+
+  function getCategory(abbr) {
+    if (abbr === "PA") return "pennsylvania";
+    if (abbr === "CA") return "california";
+    if (NE_STATES.includes(abbr)) return "newEngland";
+    if (LNG_STATES.includes(abbr)) return "lng";
+    return "other";
+  }
+
+  const CATEGORIES = {
+    lng:          { color: "#0077cd", label: "LNG Export State", radius: 7.5 },
+    newEngland:   { color: "#c20060", label: "New England",      radius: 7   },
+    california:   { color: "#d1e000", label: "California",       radius: 8.5 },
+    pennsylvania: { color: "#c20060", label: "Pennsylvania",     radius: 7.5 },
+    other:        { color: "#c0c6d6", label: "Other Lower 48 States", radius: 4 }
+  };
+
+  const data = electricityPrices.map(s => ({
+    ...s,
+    increase: Math.round((s.p2024 - s.p2020) * 10) / 10,
+    category: getCategory(s.abbr)
+  }));
+
+  const natAvg = Math.round(data.reduce((s, d) => s + d.p2024, 0) / data.length * 10) / 10;
+  const order = { other: 0, lng: 1, newEngland: 2, california: 3, pennsylvania: 4 };
+  data.sort((a, b) => order[a.category] - order[b.category]);
+
+  // ============ RESPONSIVE CHART BUILD ============
+  const svgEl = document.getElementById('mainChart');
+  const wrap = document.getElementById('chartSvgWrap');
+  const tooltip = document.getElementById('tooltip');
+  let isMobile = window.innerWidth <= 600;
+
+  function buildChart() {
+    const containerW = wrap.clientWidth;
+    isMobile = containerW <= 500;
+
+    // Adapt aspect ratio: wider on desktop, taller on mobile
+    const aspectH = isMobile ? containerW * 1.1 : Math.min(containerW * 0.57, 480);
+    const W = containerW;
+    const H = aspectH;
+
+    // Responsive margins
+    const margin = {
+      top: isMobile ? 14 : 20,
+      right: isMobile ? 12 : 30,
+      bottom: isMobile ? 44 : 52,
+      left: isMobile ? 40 : 58
+    };
+
+    const plotW = W - margin.left - margin.right;
+    const plotH = H - margin.top - margin.bottom;
+    const xMin = -1, xMax = 14, yMin = 8, yMax = 35;
+
+    function xScale(v) { return margin.left + ((v - xMin) / (xMax - xMin)) * plotW; }
+    function yScale(v) { return margin.top + plotH - ((v - yMin) / (yMax - yMin)) * plotH; }
+
+    svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svgEl.style.width = '100%';
+    svgEl.style.height = H + 'px';
+
+    // Font sizes scale with container
+    const fsTick = Math.max(9, Math.min(11, containerW * 0.014));
+    const fsAxis = Math.max(9, Math.min(12, containerW * 0.015));
+    const fsAnn = Math.max(9, Math.min(11, containerW * 0.014));
+
+    let html = '';
+
+    // --- Grid ---
+    const xTicks = isMobile ? [0, 4, 8, 12] : [0, 2, 4, 6, 8, 10, 12];
+    const yTicks = isMobile ? [10, 15, 20, 25, 30] : [10, 15, 20, 25, 30, 35];
+
+    yTicks.forEach(v => {
+      const y = yScale(v);
+      html += `<line x1="${margin.left}" y1="${y}" x2="${W-margin.right}" y2="${y}" stroke="#e8e9ec" stroke-width="1"/>`;
+      html += `<text x="${margin.left-6}" y="${y+4}" text-anchor="end" fill="#797e83" font-size="${fsTick}" font-family="Manrope,sans-serif" font-weight="500">${v}¢</text>`;
+    });
+    xTicks.forEach(v => {
+      const x = xScale(v);
+      html += `<line x1="${x}" y1="${margin.top}" x2="${x}" y2="${H-margin.bottom}" stroke="#e8e9ec" stroke-width="1"/>`;
+      html += `<text x="${x}" y="${H-margin.bottom+16}" text-anchor="middle" fill="#797e83" font-size="${fsTick}" font-family="Manrope,sans-serif" font-weight="500">+${v}¢</text>`;
+    });
+
+    // Axis labels
+    html += `<text x="${margin.left+plotW/2}" y="${H - (isMobile ? 2 : 4)}" text-anchor="middle" fill="#495059" font-size="${fsAxis}" font-family="Manrope,sans-serif" font-weight="600">Price Increase Since 2020 (¢/kWh)</text>`;
+    html += `<text x="${isMobile ? 10 : 16}" y="${margin.top+plotH/2}" text-anchor="middle" fill="#495059" font-size="${fsAxis}" font-family="Manrope,sans-serif" font-weight="600" transform="rotate(-90,${isMobile ? 10 : 16},${margin.top+plotH/2})">2024 Price (¢/kWh)</text>`;
+
+    // National avg line
+    const avgY = yScale(natAvg);
+    html += `<line x1="${margin.left}" y1="${avgY}" x2="${W-margin.right}" y2="${avgY}" stroke="#c20060" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.5"/>`;
+
+    // Avg label — position adapts
+    if (!isMobile) {
+      html += `<text x="${W-margin.right+4}" y="${avgY-6}" fill="#c20060" font-size="10" font-family="Manrope,sans-serif" font-weight="700" opacity="0.7">NATIONAL</text>`;
+      html += `<text x="${W-margin.right+4}" y="${avgY+6}" fill="#c20060" font-size="10" font-family="Manrope,sans-serif" font-weight="700" opacity="0.7">AVG ${natAvg}¢</text>`;
+    } else {
+      html += `<text x="${margin.left+4}" y="${avgY-5}" fill="#c20060" font-size="9" font-family="Manrope,sans-serif" font-weight="700" opacity="0.7">AVG ${natAvg}¢</text>`;
+    }
+
+    // Axes
+    html += `<line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${H-margin.bottom}" stroke="#d9d9d9" stroke-width="1"/>`;
+    html += `<line x1="${margin.left}" y1="${H-margin.bottom}" x2="${W-margin.right}" y2="${H-margin.bottom}" stroke="#d9d9d9" stroke-width="1"/>`;
+
+    // --- Dots ---
+    const stageDelays = { other: 0.8, lng: 1.6, newEngland: 2.4, california: 2.8, pennsylvania: 2.9 };
+    const rScale = isMobile ? 0.75 : 1;
+
+    data.forEach((d, i) => {
+      const cx = xScale(d.increase);
+      let cy = yScale(d.p2024);
+
+      // Jitter MD and PA apart — they overlap at nearly identical values
+      if (d.abbr === 'MD') cy -= 10;  // push MD up
+      if (d.abbr === 'PA') cy += 10;  // push PA down
+
+      const cat = CATEGORIES[d.category];
+      const r = cat.radius * rScale;
+      const baseDelay = stageDelays[d.category];
+      const stagger = d.category === 'other' ? (i * 0.015) : ((i % 6) * 0.06);
+      const delay = baseDelay + stagger;
+      const cls = d.category === 'other' ? 'dot-other' : d.category === 'pennsylvania' ? 'dot-ne' : d.category === 'lng' ? 'dot-lng' : d.category === 'newEngland' ? 'dot-ne' : 'dot-ca';
+
+      // Slightly larger hit area on mobile
+      const hitR = isMobile ? Math.max(r, 8) : r;
+
+      html += `<circle class="${cls}" cx="${cx}" cy="${cy}" r="${hitR}" fill="${cat.color}" stroke="none" style="animation-delay:${delay.toFixed(2)}s;transform-origin:${cx}px ${cy}px;" data-idx="${i}" cursor="pointer"/>`;
+    });
+
+    // --- SVG Annotations (desktop only, hidden via CSS on ≤700px) ---
+    const pad = 28;
+    const annDelay1 = 3.2, annDelay2 = 3.5;
+
+    const expStates = data.filter(d => d.category === 'newEngland' || d.category === 'california');
+    const eX1 = Math.min(...expStates.map(d => xScale(d.increase))) - pad;
+    const eX2 = Math.max(...expStates.map(d => xScale(d.increase))) + pad;
+    const eY1 = Math.min(...expStates.map(d => yScale(d.p2024))) - pad;
+    const eY2 = Math.max(...expStates.map(d => yScale(d.p2024))) + pad;
+
+    html += `<rect class="annotation svg-annotation" x="${eX1}" y="${eY1}" width="${eX2-eX1}" height="${eY2-eY1}" rx="10" fill="none" stroke="#c20060" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.35" style="animation-delay:${annDelay1}s;"/>`;
+
+    const cX1 = eX1 - 8;
+    const cY1 = eY1 + 10;
+    html += `<g class="annotation svg-annotation" style="animation-delay:${annDelay1}s;">
+      <rect x="${cX1-182}" y="${cY1-16}" width="178" height="48" rx="6" fill="#ffffff" stroke="#c20060" stroke-width="1" opacity="0.95"/>
+      <text x="${cX1-93}" y="${cY1+3}" text-anchor="middle" fill="#030945" font-size="${fsAnn}" font-family="Manrope,sans-serif" font-weight="800">No LNG terminals</text>
+      <text x="${cX1-93}" y="${cY1+20}" text-anchor="middle" fill="#c20060" font-size="${fsAnn}" font-family="Manrope,sans-serif" font-weight="600">Highest prices in the U.S.</text>
+    </g>`;
+
+    const lngS = data.filter(d => d.category === 'lng');
+    const lX1 = Math.min(...lngS.map(d => xScale(d.increase))) - pad;
+    const lX2 = Math.max(...lngS.map(d => xScale(d.increase))) + pad;
+    const lY1 = Math.min(...lngS.map(d => yScale(d.p2024))) - (pad - 4);
+    const lY2 = Math.max(...lngS.map(d => yScale(d.p2024))) + (pad - 4);
+
+    html += `<rect class="annotation svg-annotation" x="${lX1}" y="${lY1}" width="${lX2-lX1}" height="${lY2-lY1}" rx="10" fill="none" stroke="#0077cd" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.35" style="animation-delay:${annDelay2}s;"/>`;
+
+    const cX2 = lX2 + 8;
+    const cY2 = lY1 + 12;
+    html += `<g class="annotation svg-annotation" style="animation-delay:${annDelay2}s;">
+      <rect x="${cX2}" y="${cY2-16}" width="204" height="48" rx="6" fill="#ffffff" stroke="#0077cd" stroke-width="1" opacity="0.95"/>
+      <text x="${cX2+102}" y="${cY2+3}" text-anchor="middle" fill="#030945" font-size="${fsAnn}" font-family="Manrope,sans-serif" font-weight="800">Major LNG export terminals</text>
+      <text x="${cX2+102}" y="${cY2+20}" text-anchor="middle" fill="#0077cd" font-size="${fsAnn}" font-family="Manrope,sans-serif" font-weight="600">Below-average electricity prices</text>
+    </g>`;
+
+    svgEl.innerHTML = html;
+
+    // Trigger annotations
+    document.querySelectorAll('.annotation').forEach(el => el.classList.add('visible'));
+  }
+
+  // Initial build
+  buildChart();
+
+  // Rebuild on resize (debounced)
+  let resizeTimer;
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(buildChart, 150);
+  });
+
+  // ============ SCROLL TRIGGER ============
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        document.querySelectorAll('.annotation').forEach(el => el.classList.add('visible'));
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.2 });
+  obs.observe(wrap);
+
+  // ============ TOOLTIP (mouse + touch) ============
+  function catColor(cat) {
+    return cat === 'newEngland' ? '#c20060' : cat === 'pennsylvania' ? '#c20060' : cat === 'california' ? '#85006c' : cat === 'lng' ? '#0077cd' : '#495059';
+  }
+
+  function showTooltip(d, clientX, clientY) {
+    const cat = CATEGORIES[d.category];
+    const cc = catColor(d.category);
+    const catLine = d.category === 'other' ? '' : `<div class="tt-category" style="color:${cc}">${cat.label}</div>`;
+    const chgColor = d.increase > 5 ? '#c20060' : '#0077cd';
+
+    tooltip.innerHTML = `
+      <div class="tt-name">${d.name} (${d.abbr})</div>
+      ${catLine}
+      <div class="tt-row"><span class="tt-label">2024 Price</span><span class="tt-value">${d.p2024}¢/kWh</span></div>
+      <div class="tt-row"><span class="tt-label">Change since 2020</span><span class="tt-value" style="color:${chgColor}">+${d.increase}¢</span></div>
+    `;
+
+    tooltip.classList.add('show');
+
+    // On mobile (fixed bottom sheet), CSS handles positioning
+    if (window.innerWidth > 600) {
+      const pad = 16;
+      let left = clientX + pad;
+      let top = clientY - 10;
+
+      // Keep within viewport
+      const ttW = tooltip.offsetWidth;
+      const ttH = tooltip.offsetHeight;
+      if (left + ttW > window.innerWidth - 8) left = clientX - ttW - pad;
+      if (top + ttH > window.innerHeight - 8) top = window.innerHeight - ttH - 8;
+      if (top < 8) top = 8;
+
+      tooltip.style.left = left + 'px';
+      tooltip.style.top = top + 'px';
+    }
+  }
+
+  function hideTooltip() {
+    tooltip.classList.remove('show');
+  }
+
+  // Mouse
+  svgEl.addEventListener('mousemove', function(e) {
+    const t = e.target;
+    if (t.tagName === 'circle' && t.dataset.idx !== undefined) {
+      showTooltip(data[parseInt(t.dataset.idx)], e.clientX, e.clientY);
+    } else {
+      hideTooltip();
+    }
+  });
+  svgEl.addEventListener('mouseleave', hideTooltip);
+
+  // Touch
+  let touchActive = false;
+  svgEl.addEventListener('touchstart', function(e) {
+    const touch = e.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (el && el.tagName === 'circle' && el.dataset.idx !== undefined) {
+      e.preventDefault();
+      touchActive = true;
+      showTooltip(data[parseInt(el.dataset.idx)], touch.clientX, touch.clientY);
+    }
+  }, { passive: false });
+
+  svgEl.addEventListener('touchmove', function(e) {
+    if (!touchActive) return;
+    const touch = e.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (el && el.tagName === 'circle' && el.dataset.idx !== undefined) {
+      showTooltip(data[parseInt(el.dataset.idx)], touch.clientX, touch.clientY);
+    } else {
+      hideTooltip();
+      touchActive = false;
+    }
+  }, { passive: true });
+
+  svgEl.addEventListener('touchend', function() {
+    // Keep tooltip visible briefly on touch end, then hide
+    setTimeout(hideTooltip, 1500);
+    touchActive = false;
+  });
+
+  // Tap outside to dismiss on mobile
+  document.addEventListener('touchstart', function(e) {
+    if (!svgEl.contains(e.target)) hideTooltip();
+  });
+
+  // ============ LEGEND ============
+  const legend = document.getElementById('chartLegend');
+  [{cat:'lng',label:'LNG Export State'},{cat:'newEngland',label:'New England (no LNG terminals)'},{cat:'california',label:'California (no LNG terminals)'},{cat:'pennsylvania',label:'Pennsylvania'},{cat:'other',label:'Other Lower 48 States'}].forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'legend-item';
+    div.innerHTML = `<span class="legend-dot" style="background:${CATEGORIES[item.cat].color}"></span>${item.label}`;
+    legend.appendChild(div);
+  });
+})();
+</script>
+</body>
+</html>
