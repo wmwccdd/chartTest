@@ -654,7 +654,7 @@
 
   // ============ LEGEND ============
   const legend = document.getElementById('chartLegend');
-  [{cat:'lng',label:'LNG Export State'},{cat:'newEngland',label:'New England (no LNG terminals)'},{cat:'california',label:'California (no LNG terminals)'},{cat:'pennsylvania',label:'Pennsylvania'},{cat:'other',label:'Other Lower 48 States'}].forEach(item => {
+  [{cat:'lng',label:'LNG Export State'},{cat:'newEngland',label:'New England (no LNG terminals)'},{cat:'california',label:'California (no LNG terminals)'},{cat:'other',label:'Other Lower 48 States'}].forEach(item => {
     const div = document.createElement('div');
     div.className = 'legend-item';
     div.innerHTML = `<span class="legend-dot" style="background:${CATEGORIES[item.cat].color}"></span>${item.label}`;
