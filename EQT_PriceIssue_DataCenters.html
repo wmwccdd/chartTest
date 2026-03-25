@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI / Data Centers & Electricity Costs</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #030945; --blue: #0077cd; --rubine: #c20060; --lime: #d1e000;
+    --neutral: #797e83; --neutral-dark: #495059; --neutral-light: #a9abae;
+    --neutral-lighter: #d9d9d9; --neutral-lightest: #fafbfd; --white: #fff; --black: #000;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { font-family:'Manrope',sans-serif; background:#ffffff; -webkit-font-smoothing:antialiased; }
+
+  .chart-container {
+    max-width: 900px; margin: 0 auto;
+    padding: clamp(20px,4vw,40px) clamp(12px,3vw,32px) clamp(16px,3vw,32px);
+  }
+
+  .chart-header {
+    margin-bottom: clamp(20px,3vw,32px);
+    opacity:0; transform:translateY(12px);
+    animation: fadeUp 0.6s ease-out 0.2s forwards;
+  }
+  .chart-eyebrow { font-size:clamp(9px,1.4vw,11px); font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--rubine); margin-bottom:6px; }
+  .chart-title { font-size:clamp(17px,2.8vw,22px); font-weight:800; line-height:1.2; color:var(--navy); margin-bottom:8px; }
+  .chart-subtitle { font-size:clamp(12px,1.8vw,14px); font-weight:400; line-height:1.5; color:var(--neutral-dark); }
+  .chart-subtitle strong { color:var(--navy); font-weight:700; }
+
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(16px, 3vw, 32px);
+    opacity:0; animation: fadeIn 0.5s ease-out 0.5s forwards;
+  }
+  @media (max-width: 560px) {
+    .columns { grid-template-columns: 1fr; }
+    .col-left .bar-row { flex-direction: row; }
+    .col-left .bar-label { text-align: right; }
+    .col-left .bar-fill { transform-origin: left; margin-left: 0; }
+    .col-left .bar-value { text-align: left; }
+    .col-left .column-header { text-align: left; }
+  }
+
+  .column-header {
+    font-size: clamp(11px,1.6vw,13px);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+    border-bottom: 2px solid;
+  }
+  .col-left .column-header { color: var(--blue); border-color: var(--blue); text-align: right; }
+  .col-right .column-header { color: var(--rubine); border-color: var(--rubine); }
+
+  .bar-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 6px; height: 32px;
+    opacity: 0; animation: fadeUp 0.4s ease-out forwards;
+  }
+  .bar-label {
+    width: clamp(28px, 5vw, 40px); flex-shrink:0;
+    font-size: clamp(10px,1.4vw,12px); font-weight:700; color:var(--navy);
+    text-align: right;
+  }
+  .bar-track {
+    flex: 1; height: 22px; background: var(--neutral-lightest);
+    border-radius: 4px; overflow: hidden; position: relative;
+  }
+  .bar-fill {
+    height: 100%; border-radius: 4px;
+    transform-origin: left;
+    animation: barGrow 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    transform: scaleX(0);
+  }
+  .bar-value {
+    font-size: clamp(10px,1.3vw,11px); font-weight:700; flex-shrink:0;
+    min-width: 50px;
+  }
+  .col-left .bar-fill { background: var(--blue); transform-origin: right; margin-left: auto; }
+  .col-left .bar-value { color: var(--blue); text-align: right; }
+  .col-left .bar-row { flex-direction: row-reverse; }
+  .col-left .bar-label { text-align: left; }
+  .col-right .bar-fill { background: var(--rubine); }
+  .col-right .bar-value { color: var(--rubine); }
+
+  /* Added state rows */
+  .bar-row.added {
+    margin-top: 4px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--neutral-lighter);
+    opacity: 1;
+    animation: none;
+  }
+  .bar-row.added .bar-fill {
+    animation: barGrow 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  }
+  .bar-row.added .bar-label { color: var(--navy); }
+  .bar-row.added .remove-btn {
+    width: 18px; height: 18px; border: none; background: none;
+    color: var(--neutral-light); cursor: pointer; font-size: 16px;
+    line-height: 1; padding: 0; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; transition: color 0.15s ease, background 0.15s ease;
+  }
+  .bar-row.added .remove-btn:hover { color: var(--rubine); background: rgba(194,0,96,0.08); }
+
+  /* Add state section — single centered button */
+  .add-state-section {
+    position: relative;
+    text-align: center;
+    margin-top: 14px;
+    z-index: 60;
+    opacity: 0;
+    animation: fadeIn 0.5s ease-out 2.2s forwards;
+  }
+  .add-state-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 16px; border-radius: 20px;
+    border: 1.5px dashed var(--neutral-lighter);
+    background: var(--white); color: var(--neutral);
+    font-family: 'Manrope', sans-serif;
+    font-size: clamp(10px,1.3vw,12px); font-weight: 600;
+    cursor: pointer; transition: all 0.15s ease;
+  }
+  .add-state-btn:hover { border-color: var(--blue); color: var(--blue); }
+  .add-state-btn svg { width: 14px; height: 14px; }
+
+  /* State picker dropdown — opens upward */
+  .state-picker {
+    position: absolute; z-index: 70;
+    bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    background: var(--white); border: 1px solid var(--neutral-lighter);
+    border-radius: 8px; box-shadow: 0 -4px 32px rgba(3,9,69,0.12), 0 4px 16px rgba(0,0,0,0.06);
+    width: 240px; max-height: 280px; overflow-y: auto;
+    display: none; flex-direction: column;
+  }
+  .state-picker.open { display: flex; }
+
+  .state-picker-search {
+    padding: 8px 12px; border: none; border-bottom: 1px solid var(--neutral-lighter);
+    font-family: 'Manrope', sans-serif; font-size: 12px;
+    outline: none; color: var(--navy); background: var(--neutral-lightest);
+    border-radius: 8px 8px 0 0;
+  }
+  .state-picker-search::placeholder { color: var(--neutral-light); }
+
+  .state-picker-list { padding: 4px 0; }
+  .state-picker-item {
+    padding: 7px 12px; cursor: pointer; font-size: 12px;
+    font-weight: 500; color: var(--neutral-dark);
+    transition: background 0.1s ease;
+  }
+  .state-picker-item:hover { background: var(--neutral-lightest); color: var(--navy); }
+  .state-picker-item.disabled {
+    opacity: 0.35; pointer-events: none;
+  }
+
+  /* Callout */
+  .callout {
+    margin-top: clamp(16px,2vw,24px);
+    padding: 16px 20px;
+    background: var(--neutral-lightest);
+    border-left: 3px solid var(--navy);
+    border-radius: 0 8px 8px 0;
+    font-size: clamp(12px,1.6vw,14px);
+    line-height: 1.5;
+    color: var(--neutral-dark);
+    opacity:0; animation: fadeUp 0.6s ease-out 2.5s forwards;
+  }
+  .callout strong { color: var(--navy); }
+
+  .chart-source {
+    margin-top:14px; font-size:clamp(9px,1.3vw,11px); color:var(--neutral-light);
+    opacity:0; animation:fadeIn 0.5s ease-out 3s forwards;
+  }
+  .chart-source a { color: var(--blue); text-decoration: none; }
+  .chart-source a:hover { text-decoration: underline; }
+
+  .tooltip {
+    position:fixed; pointer-events:none; background:var(--white); color:var(--navy);
+    border:1px solid var(--neutral-lighter); border-radius:8px; padding:10px 14px;
+    font-size:12px; line-height:1.5; box-shadow:0 4px 24px rgba(3,9,69,0.10);
+    opacity:0; transition:opacity 0.15s ease; z-index:1000; white-space:nowrap;
+    max-width:calc(100vw - 24px);
+  }
+  .tooltip.show { opacity:1; }
+  .tooltip .tt-name { font-weight:800; font-size:13px; margin-bottom:2px; }
+  .tooltip .tt-row { display:flex; justify-content:space-between; gap:16px; }
+  .tooltip .tt-label { color:var(--neutral); font-weight:500; }
+  .tooltip .tt-value { font-weight:700; }
+
+  @media (max-width:600px) {
+    .tooltip { position:fixed; bottom:0; left:0!important; right:0; top:auto!important; width:100%; max-width:100%; border-radius:12px 12px 0 0; padding:16px 20px; transform:translateY(100%); transition:opacity 0.2s ease,transform 0.2s ease; }
+    .tooltip.show { transform:translateY(0); }
+  }
+
+  @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  @keyframes barGrow { from{transform:scaleX(0)} to{transform:scaleX(1)} }
+</style>
+</head>
+<body>
+<div class="chart-container">
+  <div class="chart-header">
+    <div class="chart-eyebrow">AI / Data Centers & Electricity Costs</div>
+    <h2 class="chart-title">The States Adding the Most Data Centers Are Not the States With the Highest Price Increases</h2>
+    <p class="chart-subtitle">
+      If data center growth were the primary driver of rising electricity costs, these two lists would overlap. <strong>They don't.</strong>
+    </p>
+  </div>
+
+  <div class="columns" id="columns"></div>
+
+  <div class="add-state-section" id="addStateSection">
+    <button class="add-state-btn" id="addStateBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add a state to compare
+    </button>
+    <div class="state-picker" id="statePicker">
+      <input type="text" class="state-picker-search" placeholder="Search states…">
+      <div class="state-picker-list"></div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Virginia</strong> added more data center capacity than any other state (+2,300 MW) yet saw only a <strong>2.3¢/kWh</strong> price increase. <strong>Rhode Island</strong> added just 13 MW but saw an <strong>8.7¢</strong> increase. Data center growth does not explain regional price divergence.
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+  <div class="chart-source">Source: <a href="https://www.eia.gov/electricity/monthly/" target="_blank" rel="noopener">EIA Electric Power Monthly</a> · Industry DC Capacity Reports (Cushman & Wakefield, JLL, CBRE)</div>
+</div>
+
+<script>
+(function(){
+  const dcData = [
+    {abbr:"AL",name:"Alabama",c18:35,c23:90,pc:2.4},
+    {abbr:"AZ",name:"Arizona",c18:180,c23:450,pc:1.3},{abbr:"AR",name:"Arkansas",c18:15,c23:40,pc:2.2},
+    {abbr:"CA",name:"California",c18:550,c23:920,pc:10.5},{abbr:"CO",name:"Colorado",c18:120,c23:280,pc:2.9},
+    {abbr:"CT",name:"Connecticut",c18:50,c23:85,pc:8.0},{abbr:"DE",name:"Delaware",c18:15,c23:30,pc:2.0},
+    {abbr:"DC",name:"D.C.",c18:80,c23:110,pc:2.4},{abbr:"FL",name:"Florida",c18:180,c23:380,pc:2.7},
+    {abbr:"GA",name:"Georgia",c18:200,c23:520,pc:2.4},{abbr:"HI",name:"Hawaii",c18:8,c23:15,pc:11.3},
+    {abbr:"ID",name:"Idaho",c18:10,c23:35,pc:1.5},{abbr:"IL",name:"Illinois",c18:250,c23:520,pc:3.9},
+    {abbr:"IN",name:"Indiana",c18:60,c23:200,pc:2.9},{abbr:"IA",name:"Iowa",c18:80,c23:250,pc:2.0},
+    {abbr:"KS",name:"Kansas",c18:30,c23:80,pc:1.7},{abbr:"KY",name:"Kentucky",c18:20,c23:55,pc:1.8},
+    {abbr:"LA",name:"Louisiana",c18:25,c23:60,pc:2.6},{abbr:"ME",name:"Maine",c18:8,c23:20,pc:7.6},
+    {abbr:"MD",name:"Maryland",c18:120,c23:250,pc:1.9},{abbr:"MA",name:"Massachusetts",c18:110,c23:220,pc:9.1},
+    {abbr:"MI",name:"Michigan",c18:80,c23:180,pc:3.2},{abbr:"MN",name:"Minnesota",c18:80,c23:200,pc:2.2},
+    {abbr:"MS",name:"Mississippi",c18:15,c23:45,pc:2.5},{abbr:"MO",name:"Missouri",c18:60,c23:140,pc:1.9},
+    {abbr:"MT",name:"Montana",c18:5,c23:15,pc:1.7},{abbr:"NE",name:"Nebraska",c18:50,c23:180,pc:1.5},
+    {abbr:"NV",name:"Nevada",c18:180,c23:450,pc:2.5},{abbr:"NH",name:"New Hampshire",c18:15,c23:30,pc:7.6},
+    {abbr:"NJ",name:"New Jersey",c18:200,c23:380,pc:2.1},{abbr:"NM",name:"New Mexico",c18:30,c23:120,pc:2.0},
+    {abbr:"NY",name:"New York",c18:350,c23:580,pc:4.5},{abbr:"NC",name:"North Carolina",c18:150,c23:380,pc:2.1},
+    {abbr:"ND",name:"North Dakota",c18:8,c23:25,pc:1.5},{abbr:"OH",name:"Ohio",c18:150,c23:450,pc:2.6},
+    {abbr:"OK",name:"Oklahoma",c18:25,c23:70,pc:1.8},{abbr:"OR",name:"Oregon",c18:130,c23:350,pc:1.7},
+    {abbr:"PA",name:"Pennsylvania",c18:120,c23:280,pc:2.9},{abbr:"RI",name:"Rhode Island",c18:12,c23:25,pc:8.7},
+    {abbr:"SC",name:"South Carolina",c18:40,c23:120,pc:2.2},{abbr:"SD",name:"South Dakota",c18:10,c23:30,pc:1.7},
+    {abbr:"TN",name:"Tennessee",c18:70,c23:200,pc:2.3},{abbr:"TX",name:"Texas",c18:450,c23:1200,pc:3.0},
+    {abbr:"UT",name:"Utah",c18:60,c23:180,pc:1.5},{abbr:"VT",name:"Vermont",c18:5,c23:12,pc:3.2},
+    {abbr:"VA",name:"Virginia",c18:1200,c23:3500,pc:2.3},{abbr:"WA",name:"Washington",c18:250,c23:600,pc:1.5},
+    {abbr:"WV",name:"West Virginia",c18:5,c23:15,pc:1.8},{abbr:"WI",name:"Wisconsin",c18:50,c23:120,pc:2.2},
+    {abbr:"WY",name:"Wyoming",c18:15,c23:50,pc:1.5}
+  ];
+
+  dcData.forEach(d => d.growth = d.c23 - d.c18);
+
+  const topGrowth = [...dcData].sort((a,b) => b.growth - a.growth).slice(0,10);
+  const maxGrowth = topGrowth[0].growth;
+  const topPrice = [...dcData].sort((a,b) => b.pc - a.pc).slice(0,10);
+  const maxPrice = topPrice[0].pc;
+
+  // Track which abbrs are in the top lists and which have been added
+  const topAbbrs = new Set([...topGrowth.map(d=>d.abbr), ...topPrice.map(d=>d.abbr)]);
+  const addedAbbrs = new Set();
+
+  const cols = document.getElementById('columns');
+  const tooltip = document.getElementById('tooltip');
+
+  // ---- Build left column ----
+  const colL = document.createElement('div');
+  colL.className = 'col-left';
+  colL.innerHTML = '<div class="column-header">Largest Data Center Growth (MW added)</div>';
+  topGrowth.forEach((d, i) => {
+    const pct = (d.growth / maxGrowth) * 100;
+    const delay = 0.8 + i * 0.08;
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.style.animationDelay = delay + 's';
+    row.setAttribute('data-abbr', d.abbr);
+    row.innerHTML = `
+      <span class="bar-label">${d.abbr}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;animation-delay:${delay+0.1}s"></div></div>
+      <span class="bar-value">+${d.growth.toLocaleString()} MW</span>
+    `;
+    colL.appendChild(row);
+  });
+  const addedL = document.createElement('div');
+  addedL.id = 'addedLeft';
+  colL.appendChild(addedL);
+  cols.appendChild(colL);
+
+  // ---- Build right column ----
+  const colR = document.createElement('div');
+  colR.className = 'col-right';
+  colR.innerHTML = '<div class="column-header">Largest Price Increase (¢/kWh, 2018→2023)</div>';
+  topPrice.forEach((d, i) => {
+    const pct = (d.pc / maxPrice) * 100;
+    const delay = 1.4 + i * 0.08;
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.style.animationDelay = delay + 's';
+    row.setAttribute('data-abbr', d.abbr);
+    row.innerHTML = `
+      <span class="bar-label">${d.abbr}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;animation-delay:${delay+0.1}s"></div></div>
+      <span class="bar-value">+${d.pc}¢</span>
+    `;
+    colR.appendChild(row);
+  });
+  const addedR = document.createElement('div');
+  addedR.id = 'addedRight';
+  colR.appendChild(addedR);
+  cols.appendChild(colR);
+
+  // ---- Single state picker ----
+  const picker = document.getElementById('statePicker');
+  const addBtn = document.getElementById('addStateBtn');
+
+  function populatePicker() {
+    const list = picker.querySelector('.state-picker-list');
+    const search = picker.querySelector('.state-picker-search');
+    search.value = '';
+
+    function render(filter) {
+      list.innerHTML = '';
+      dcData
+        .filter(d => !topAbbrs.has(d.abbr))
+        .sort((a,b) => a.name.localeCompare(b.name))
+        .forEach(d => {
+          const isAdded = addedAbbrs.has(d.abbr);
+          const matches = !filter || d.name.toLowerCase().includes(filter.toLowerCase()) || d.abbr.toLowerCase().includes(filter.toLowerCase());
+          if (!matches) return;
+          const item = document.createElement('div');
+          item.className = 'state-picker-item' + (isAdded ? ' disabled' : '');
+          item.textContent = `${d.name} (${d.abbr})`;
+          if (!isAdded) {
+            item.addEventListener('click', function() {
+              addState(d.abbr);
+              picker.classList.remove('open');
+            });
+          }
+          list.appendChild(item);
+        });
+    }
+
+    render('');
+    search.oninput = function() { render(this.value); };
+  }
+
+  addBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const wasOpen = picker.classList.contains('open');
+    picker.classList.remove('open');
+    if (!wasOpen) {
+      populatePicker();
+      picker.classList.add('open');
+      picker.querySelector('.state-picker-search').focus();
+    }
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.add-state-section')) picker.classList.remove('open');
+  });
+
+  function addState(abbr) {
+    const d = dcData.find(x => x.abbr === abbr);
+    if (!d || addedAbbrs.has(abbr)) return;
+    addedAbbrs.add(abbr);
+
+    // Left column (growth)
+    const pctG = (d.growth / maxGrowth) * 100;
+    const rowL = document.createElement('div');
+    rowL.className = 'bar-row added';
+    rowL.setAttribute('data-abbr', d.abbr);
+    rowL.innerHTML = `
+      <button class="remove-btn" title="Remove">&times;</button>
+      <span class="bar-label">${d.abbr}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pctG}%"></div></div>
+      <span class="bar-value">+${d.growth.toLocaleString()} MW</span>
+    `;
+    rowL.querySelector('.remove-btn').addEventListener('click', () => removeState(abbr));
+    addTooltipEvents(rowL, d);
+    document.getElementById('addedLeft').appendChild(rowL);
+
+    // Right column (price)
+    const pctP = (d.pc / maxPrice) * 100;
+    const rowR = document.createElement('div');
+    rowR.className = 'bar-row added';
+    rowR.setAttribute('data-abbr', d.abbr);
+    rowR.innerHTML = `
+      <span class="bar-label">${d.abbr}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pctP}%"></div></div>
+      <span class="bar-value">+${d.pc}¢</span>
+      <button class="remove-btn" title="Remove">&times;</button>
+    `;
+    rowR.querySelector('.remove-btn').addEventListener('click', () => removeState(abbr));
+    addTooltipEvents(rowR, d);
+    document.getElementById('addedRight').appendChild(rowR);
+  }
+
+  function removeState(abbr) {
+    addedAbbrs.delete(abbr);
+    document.querySelectorAll(`.bar-row.added[data-abbr="${abbr}"]`).forEach(el => el.remove());
+  }
+
+  // ---- Tooltip ----
+  function addTooltipEvents(row, d) {
+    row.style.cursor = 'pointer';
+    row.addEventListener('mouseenter', function() {
+      tooltip.innerHTML = `
+        <div class="tt-name">${d.name} (${d.abbr})</div>
+        <div class="tt-row"><span class="tt-label">DC Capacity 2023</span><span class="tt-value">${d.c23.toLocaleString()} MW</span></div>
+        <div class="tt-row"><span class="tt-label">Growth</span><span class="tt-value" style="color:var(--blue)">+${d.growth.toLocaleString()} MW</span></div>
+        <div class="tt-row"><span class="tt-label">Price Change</span><span class="tt-value" style="color:${d.pc > 5 ? 'var(--rubine)' : 'var(--blue)'}">+${d.pc}¢/kWh</span></div>
+      `;
+      tooltip.classList.add('show');
+    });
+    row.addEventListener('mousemove', function(e) {
+      if (window.innerWidth > 600) {
+        let left = e.clientX + 16;
+        if (left + 200 > window.innerWidth) left = e.clientX - 200;
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = (e.clientY - 10) + 'px';
+      }
+    });
+    row.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+  }
+
+  // Apply tooltip to initial rows
+  document.querySelectorAll('.bar-row[data-abbr]').forEach(row => {
+    const d = dcData.find(x => x.abbr === row.getAttribute('data-abbr'));
+    if (d) addTooltipEvents(row, d);
+  });
+})();
+</script>
+</body>
+</html>
